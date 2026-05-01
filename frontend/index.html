@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RideShare — Carpooling Coordinator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<!-- ── ANIMATED BG GRID ─────────────────────────────────────── -->
+<div class="bg-grid"></div>
+<div class="bg-orb orb1"></div>
+<div class="bg-orb orb2"></div>
+<div class="bg-orb orb3"></div>
+
+<!-- ── SIDEBAR ──────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.35C17.5 22.15 21 17.25 21 12V6L12 2z" fill="url(#shield-grad)"/>
+        <path d="M9 12l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <defs>
+          <linearGradient id="shield-grad" x1="0" y1="0" x2="24" y2="24">
+            <stop offset="0%" stop-color="#00D4AA"/>
+            <stop offset="100%" stop-color="#0066FF"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-name">RideShare</div>
+      <div class="brand-tagline">Carpooling Coordinator</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <button class="nav-item active" onclick="showTab('rides')" id="nav-rides">
+      <span class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M5 17H3a2 2 0 01-2-2V7a2 2 0 012-2h11l5 5v5a2 2 0 01-2 2h-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="7.5" cy="17.5" r="2.5" stroke="currentColor" stroke-width="1.8"/>
+          <circle cx="17.5" cy="17.5" r="2.5" stroke="currentColor" stroke-width="1.8"/>
+        </svg>
+      </span>
+      <span class="nav-label">Rides</span>
+      <span class="nav-badge" id="rides-count">0</span>
+    </button>
+
+    <button class="nav-item" onclick="showTab('drivers')" id="nav-drivers">
+      <span class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M16 3.5s1.5 1 1.5 2.5-1.5 2.5-1.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="nav-label">Drivers</span>
+      <span class="nav-badge" id="drivers-count">0</span>
+    </button>
+
+    <button class="nav-item" onclick="showTab('riders')" id="nav-riders">
+      <span class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/>
+          <circle cx="17" cy="9" r="3" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M1 20c0-3.3 3.6-6 8-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M13 20c0-2.8 2.7-5 6-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="nav-label">Riders</span>
+      <span class="nav-badge" id="riders-count">0</span>
+    </button>
+  </nav>
+
+  <div class="sidebar-stats">
+    <div class="stat-row">
+      <div class="stat-dot dot-green"></div>
+      <span id="api-status-text">Connecting…</span>
+    </div>
+    <div class="stat-label">API Status</div>
+  </div>
+</aside>
+
+<!-- ── MAIN CONTENT ─────────────────────────────────────────── -->
+<main class="main">
+
+  <!-- ===== RIDES TAB ===== -->
+  <div class="tab-panel active" id="tab-rides">
+
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Available Rides</h1>
+        <p class="page-sub">Post, manage and track all carpool rides</p>
+      </div>
+      <button class="btn-hero" onclick="openModal('ride')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+        Post a Ride
+      </button>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="stats-bar" id="rides-stats-bar">
+      <div class="stat-pill pill-green"><span class="pill-num" id="stat-available">0</span><span class="pill-label">Available</span></div>
+      <div class="stat-pill pill-amber"><span class="pill-num" id="stat-full">0</span><span class="pill-label">Full</span></div>
+      <div class="stat-pill pill-blue"><span class="pill-num" id="stat-completed">0</span><span class="pill-label">Completed</span></div>
+      <div class="stat-pill pill-red"><span class="pill-num" id="stat-cancelled">0</span><span class="pill-label">Cancelled</span></div>
+    </div>
+
+    <!-- Rides grid -->
+    <div class="rides-grid" id="rides-grid">
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <span>Loading rides…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DRIVERS TAB ===== -->
+  <div class="tab-panel" id="tab-drivers">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Drivers</h1>
+        <p class="page-sub">Manage registered drivers and their vehicles</p>
+      </div>
+      <button class="btn-hero" onclick="openModal('driver')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+        Add Driver
+      </button>
+    </div>
+    <div class="cards-grid" id="drivers-grid">
+      <div class="loading-state"><div class="spinner"></div><span>Loading drivers…</span></div>
+    </div>
+  </div>
+
+  <!-- ===== RIDERS TAB ===== -->
+  <div class="tab-panel" id="tab-riders">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Riders</h1>
+        <p class="page-sub">Manage registered passengers</p>
+      </div>
+      <button class="btn-hero" onclick="openModal('rider')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+        Add Rider
+      </button>
+    </div>
+    <div class="cards-grid" id="riders-grid">
+      <div class="loading-state"><div class="spinner"></div><span>Loading riders…</span></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── MODAL OVERLAY ─────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div>
+        <h2 class="modal-title" id="modal-title">Post a Ride</h2>
+        <p class="modal-sub" id="modal-sub">Fill in the details below</p>
+      </div>
+      <button class="modal-close" onclick="closeModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <div class="modal-body" id="modal-body">
+      <!-- injected by JS -->
+    </div>
+
+    <div class="modal-footer">
+      <div class="msg-box" id="modal-msg"></div>
+      <div class="footer-btns">
+        <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+        <button class="btn-submit" id="modal-submit" onclick="handleModalSubmit()">Submit</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ─────────────────────────────────────────────────── -->
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
