@@ -7,6 +7,6 @@ DB_CONFIG = {
     "host":     "localhost",   # MySQL server host
     "port":     3306,          # default MySQL port
     "user":     "root",        # your MySQL username
-    "password": "root",  
+    "password": "veekshubp06",  
     "database": "carpooling_db",
 }

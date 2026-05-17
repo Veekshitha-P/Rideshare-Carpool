@@ -118,7 +118,76 @@
       </div>
     </div>
   </div>
+<!-- ── BOOKINGS TABLE SECTION ─────────────────────────── -->
+<section id="bookings-section" style="display:none; padding: 24px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h2 style="color:#fff; font-size:1.5rem;">📋 My Bookings</h2>
+    <button onclick="loadBookings()"
+      style="background:#10b981;color:#fff;border:none;padding:8px 18px;
+             border-radius:8px;cursor:pointer;font-size:0.9rem;">
+      🔄 Refresh
+    </button>
+  </div>
+  <div style="overflow-x:auto;">
+    <table id="bookings-table"
+      style="width:100%;border-collapse:collapse;background:#1a1a2e;
+             border-radius:12px;overflow:hidden;color:#ccc;font-size:0.85rem;">
+      <thead>
+        <tr style="background:#0f3460;color:#fff;text-align:left;">
+          <th style="padding:12px;">Booking ID</th>
+          <th style="padding:12px;">Rider</th>
+          <th style="padding:12px;">Rider Phone</th>
+          <th style="padding:12px;">Driver</th>
+          <th style="padding:12px;">Driver Phone</th>
+          <th style="padding:12px;">Vehicle</th>
+          <th style="padding:12px;">Pickup</th>
+          <th style="padding:12px;">Dropoff</th>
+          <th style="padding:12px;">Departure</th>
+          <th style="padding:12px;">Seats</th>
+          <th style="padding:12px;">Fare (₹)</th>
+          <th style="padding:12px;">Status</th>
+          <th style="padding:12px;">Action</th>
+        </tr>
+      </thead>
+      <tbody id="bookings-tbody">
+        <tr><td colspan="13" style="text-align:center;padding:20px;">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
 
+<!-- ── BOOK RIDE MODAL ────────────────────────────────── -->
+<div id="book-modal" style="display:none;position:fixed;inset:0;
+     background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#1a1a2e;border-radius:16px;padding:32px;
+              width:400px;max-width:90%;border:1px solid #10b981;">
+    <h3 style="color:#10b981;margin-bottom:20px;">🚗 Book This Ride</h3>
+
+    <label style="color:#aaa;font-size:0.85rem;">Rider ID</label>
+    <input id="book-rider-id" type="number" placeholder="Enter your Rider ID"
+      style="width:100%;padding:10px;margin:6px 0 14px;border-radius:8px;
+             border:1px solid #333;background:#0d0d1a;color:#fff;font-size:0.9rem;">
+
+    <label style="color:#aaa;font-size:0.85rem;">Seats to Book</label>
+    <input id="book-seats" type="number" value="1" min="1"
+      style="width:100%;padding:10px;margin:6px 0 20px;border-radius:8px;
+             border:1px solid #333;background:#0d0d1a;color:#fff;font-size:0.9rem;">
+
+    <div style="display:flex;gap:10px;">
+      <button onclick="confirmBooking()"
+        style="flex:1;padding:10px;background:#10b981;color:#fff;
+               border:none;border-radius:8px;cursor:pointer;font-size:0.95rem;">
+        ✅ Confirm Booking
+      </button>
+      <button onclick="closeBookModal()"
+        style="flex:1;padding:10px;background:#e74c3c;color:#fff;
+               border:none;border-radius:8px;cursor:pointer;font-size:0.95rem;">
+        ✖ Cancel
+      </button>
+    </div>
+    <div id="book-msg" style="margin-top:14px;font-size:0.85rem;text-align:center;"></div>
+  </div>
+</div>
   <!-- ===== DRIVERS TAB ===== -->
   <div class="tab-panel" id="tab-drivers">
     <div class="page-header">
@@ -152,6 +221,16 @@
       <div class="loading-state"><div class="spinner"></div><span>Loading riders…</span></div>
     </div>
   </div>
+  <div class="nav-item" id="nav-bookings" onclick="showTab('bookings')">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" 
+          stroke="currentColor" stroke-width="1.8"/>
+    <rect x="9" y="3" width="6" height="4" rx="1" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M9 12h6M9 16h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+  </svg>
+  Bookings
+  <span class="nav-badge" id="bookings-count">0</span>
+</div>
 
 </main>
 

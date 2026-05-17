@@ -10,6 +10,8 @@ CREATE DATABASE IF NOT EXISTS carpooling_db
 USE carpooling_db;
 
 -- Drop tables in reverse FK order for clean re-run
+-- bookings must be dropped FIRST (it references rides, riders, drivers)
+DROP TABLE IF EXISTS bookings;
 DROP TABLE IF EXISTS rides;
 DROP TABLE IF EXISTS riders;
 DROP TABLE IF EXISTS drivers;
@@ -22,7 +24,7 @@ CREATE TABLE drivers (
   name         VARCHAR(100) NOT NULL,
   phone        VARCHAR(20)  NOT NULL,
   email        VARCHAR(150) NOT NULL UNIQUE,
-  vehicle      VARCHAR(100) NOT NULL,        -- e.g. "Honda City - White"
+  vehicle      VARCHAR(100) NOT NULL,
   license_no   VARCHAR(50)  NOT NULL UNIQUE,
   created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
@@ -44,7 +46,7 @@ CREATE TABLE riders (
 CREATE TABLE rides (
   id              INT          AUTO_INCREMENT PRIMARY KEY,
   driver_id       INT          NOT NULL,
-  rider_id        INT,                              -- NULL = no rider yet
+  rider_id        INT,
   pickup_point    VARCHAR(200) NOT NULL,
   dropoff_point   VARCHAR(200) NOT NULL,
   departure_time  DATETIME     NOT NULL,
@@ -58,6 +60,25 @@ CREATE TABLE rides (
                                ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE CASCADE,
   FOREIGN KEY (rider_id)  REFERENCES riders(id)  ON DELETE SET NULL
+);
+
+-- ----------------------------------------------------------------
+-- Table 4: bookings  (tracks ride bookings — links rides + riders + drivers)
+-- ----------------------------------------------------------------
+CREATE TABLE bookings (
+  booking_id     INT           AUTO_INCREMENT PRIMARY KEY,
+  ride_id        INT           NOT NULL,
+  rider_id       INT           NOT NULL,
+  driver_id      INT           NOT NULL,
+  pickup_location  VARCHAR(255),
+  dropoff_location VARCHAR(255),
+  fare           DECIMAL(10,2),
+  seats_booked   INT           NOT NULL DEFAULT 1,
+  booking_status ENUM('confirmed','cancelled') NOT NULL DEFAULT 'confirmed',
+  booked_at      TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (ride_id)   REFERENCES rides(id)   ON DELETE CASCADE,
+  FOREIGN KEY (rider_id)  REFERENCES riders(id)  ON DELETE CASCADE,
+  FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE CASCADE
 );
 
 -- ================================================================
@@ -85,3 +106,5 @@ INSERT INTO rides (driver_id, rider_id, pickup_point, dropoff_point, departure_t
   (2, NULL, 'Yelahanka, Bangalore',   'Silk Board, Bangalore',      '2025-05-11 07:00:00', 2, 2, 90.00,  'available'),
   (3, 4,    'Rajajinagar, Bangalore', 'Outer Ring Road, Bangalore', '2025-05-08 08:15:00', 3, 0, 65.00,  'full'),
   (4, NULL, 'JP Nagar, Bangalore',    'Airport Road, Bangalore',    '2025-05-11 05:30:00', 6, 6, 120.00, 'available');
+
+-- bookings table starts empty (filled by the app when users book rides)

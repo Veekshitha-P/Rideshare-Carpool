@@ -8,6 +8,9 @@ const API = "http://localhost:8000";
 // Current modal context
 let modalCtx = { type: null, id: null };
 
+// Booking context
+let selectedRideId = null;
+
 // ================================================================
 //  UTILITIES
 // ================================================================
@@ -25,8 +28,8 @@ function initials(name) {
 function fmtDate(dt) {
   if (!dt) return "—";
   const d = new Date(dt.replace(" ", "T"));
-  return d.toLocaleDateString("en-IN", { day:"2-digit", month:"short" }) +
-         " · " + d.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit" });
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) +
+    " · " + d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 }
 
 function setBadge(id, count) {
@@ -37,7 +40,7 @@ function setBadge(id, count) {
 async function checkHealth() {
   try {
     const res = await fetch(`${API}/`);
-    const ok  = res.ok;
+    const ok = res.ok;
     document.querySelector(".stat-dot").className = `stat-dot ${ok ? "dot-green" : "dot-red"}`;
     document.getElementById("api-status-text").textContent = ok ? "API online" : "API offline";
   } catch {
@@ -54,9 +57,10 @@ function showTab(name) {
   document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
   document.getElementById(`tab-${name}`).classList.add("active");
   document.getElementById(`nav-${name}`).classList.add("active");
-  if (name === "rides")   { populateSelects(); loadRides(); }
-  if (name === "drivers") loadDrivers();
-  if (name === "riders")  loadRiders();
+  if (name === "rides")    { populateSelects(); loadRides(); }
+  if (name === "drivers")  loadDrivers();
+  if (name === "riders")   loadRiders();
+  if (name === "bookings") loadBookings();
 }
 
 // ================================================================
@@ -66,7 +70,7 @@ async function loadRides() {
   const grid = document.getElementById("rides-grid");
   grid.innerHTML = `<div class="loading-state"><div class="spinner"></div><span>Loading rides…</span></div>`;
   try {
-    const res  = await fetch(`${API}/rides`);
+    const res = await fetch(`${API}/rides`);
     const data = await res.json();
     setBadge("rides-count", data.length);
     updateRideStats(data);
@@ -85,10 +89,10 @@ async function loadRides() {
 function updateRideStats(rides) {
   const counts = { available: 0, full: 0, completed: 0, cancelled: 0 };
   rides.forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
-  document.getElementById("stat-available").textContent  = counts.available;
-  document.getElementById("stat-full").textContent       = counts.full;
-  document.getElementById("stat-completed").textContent  = counts.completed;
-  document.getElementById("stat-cancelled").textContent  = counts.cancelled;
+  document.getElementById("stat-available").textContent = counts.available;
+  document.getElementById("stat-full").textContent      = counts.full;
+  document.getElementById("stat-completed").textContent = counts.completed;
+  document.getElementById("stat-cancelled").textContent = counts.cancelled;
 }
 
 function rideCard(r, i) {
@@ -97,8 +101,19 @@ function rideCard(r, i) {
     ? `<div class="meta-chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8"/></svg>${r.rider_name}</div>`
     : `<div class="meta-chip" style="opacity:.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.8"/></svg>No rider</div>`;
 
-  // Encode ride data safely for onclick
   const safe = encodeURIComponent(JSON.stringify(r));
+
+  // Book button only shows when ride is available
+  const bookBtn = r.status === "available"
+    ? `<button class="btn-edit-card"
+         style="background:#10b981;border-color:#10b981;color:#fff;"
+         onclick="openBookModal(${r.id})">
+         🚗 Book
+       </button>`
+    : `<button class="btn-edit-card"
+         style="opacity:0.35;cursor:not-allowed;" disabled>
+         🚗 Book
+       </button>`;
 
   return `
   <div class="ride-card" style="animation-delay:${delay}s">
@@ -148,6 +163,7 @@ function rideCard(r, i) {
     </div>
 
     <div class="ride-actions">
+      ${bookBtn}
       <button class="btn-edit-card" onclick="editRideModal(decodeURIComponent('${safe}'))">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="1.8"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="1.8"/></svg>
         Edit Ride
@@ -169,6 +185,163 @@ async function deleteRide(id) {
     toast("✓ Ride deleted");
     loadRides();
   } catch (e) { toast(`✗ ${e.message}`, "error"); }
+}
+
+// ================================================================
+//  BOOK RIDE MODAL
+// ================================================================
+function openBookModal(rideId) {
+  selectedRideId = rideId;
+  document.getElementById("book-modal").style.display = "flex";
+  document.getElementById("book-msg").textContent     = "";
+  document.getElementById("book-rider-id").value      = "";
+  document.getElementById("book-seats").value         = "1";
+}
+
+function closeBookModal() {
+  document.getElementById("book-modal").style.display = "none";
+  selectedRideId = null;
+}
+
+async function confirmBooking() {
+  const riderId = parseInt(document.getElementById("book-rider-id").value);
+  const seats   = parseInt(document.getElementById("book-seats").value);
+  const msg     = document.getElementById("book-msg");
+
+  if (!riderId || !seats) {
+    msg.style.color  = "#e74c3c";
+    msg.textContent  = "Please fill all fields.";
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/bookings`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ ride_id: selectedRideId, rider_id: riderId, seats_booked: seats })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Booking failed");
+
+    msg.style.color = "#10b981";
+    msg.textContent = "✅ " + data.message;
+
+    showBookingConfirmation(data.booking);
+
+    setTimeout(() => {
+      closeBookModal();
+      loadRides();
+    }, 2000);
+
+  } catch (err) {
+    msg.style.color = "#e74c3c";
+    msg.textContent = "❌ " + err.message;
+  }
+}
+
+function showBookingConfirmation(b) {
+  const win = window.open("", "Booking Confirmation", "width=620,height=520,top=100,left=300");
+  win.document.write(`
+    <html><head><title>Booking Confirmed</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #0d0d1a; color: #ccc; padding: 28px; }
+      h2   { color: #10b981; margin-bottom: 4px; }
+      p    { color: #777; font-size: 0.85rem; margin-top: 0; }
+      table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+      th, td { padding: 10px 14px; border: 1px solid #2a2a3e; font-size: 0.9rem; }
+      th { background: #0f3460; color: #fff; text-align: left; }
+      tr:nth-child(even) { background: #1a1a2e; }
+      .badge { padding: 4px 12px; border-radius: 20px; background: #10b981;
+               color: #fff; font-size: 0.8rem; display: inline-block; }
+    </style></head><body>
+    <h2>✅ Booking Confirmed!</h2>
+    <p>Keep this info for your reference.</p>
+    <table>
+      <tr><th>Field</th><th>Details</th></tr>
+      <tr><td>Booking ID</td><td><strong>#${b.booking_id}</strong></td></tr>
+      <tr><td>Status</td><td><span class="badge">${b.status}</span></td></tr>
+      <tr><td>Rider Name</td><td>${b.rider_name}</td></tr>
+      <tr><td>Rider Phone</td><td>${b.rider_phone}</td></tr>
+      <tr><td>Driver Name</td><td>${b.driver_name}</td></tr>
+      <tr><td>Driver Phone</td><td>${b.driver_phone}</td></tr>
+      <tr><td>Vehicle</td><td>${b.vehicle} (${b.license_plate})</td></tr>
+      <tr><td>Pickup</td><td>${b.pickup}</td></tr>
+      <tr><td>Dropoff</td><td>${b.dropoff}</td></tr>
+      <tr><td>Departure</td><td>${b.departure_time}</td></tr>
+      <tr><td>Seats Booked</td><td>${b.seats_booked}</td></tr>
+      <tr><td>Total Fare</td><td><strong>₹${b.fare}</strong></td></tr>
+    </table>
+    </body></html>
+  `);
+}
+
+// ================================================================
+//  BOOKINGS TABLE
+// ================================================================
+async function loadBookings() {
+  const tbody = document.getElementById("bookings-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:24px;color:#777;">Loading…</td></tr>`;
+
+  try {
+    const res  = await fetch(`${API}/bookings`);
+    const data = await res.json();
+
+    setBadge("bookings-count", data.filter(b => b.booking_status === "confirmed").length);
+
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:24px;color:#555;">No bookings found.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = data.map(b => `
+      <tr style="border-bottom:1px solid #1e1e2e;">
+        <td style="padding:10px 14px;"><strong>#${b.booking_id}</strong></td>
+        <td style="padding:10px 14px;">${b.rider_name}</td>
+        <td style="padding:10px 14px;">${b.rider_phone}</td>
+        <td style="padding:10px 14px;">${b.driver_name}</td>
+        <td style="padding:10px 14px;">${b.driver_phone}</td>
+        <td style="padding:10px 14px;">${b.vehicle_model} · ${b.vehicle_color}</td>
+        <td style="padding:10px 14px;">${b.pickup_location}</td>
+        <td style="padding:10px 14px;">${b.dropoff_location}</td>
+        <td style="padding:10px 14px;">${fmtDate(b.departure_time)}</td>
+        <td style="padding:10px 14px;text-align:center;">${b.seats_booked}</td>
+        <td style="padding:10px 14px;">₹${b.fare}</td>
+        <td style="padding:10px 14px;">
+          <span style="padding:4px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;
+            background:${b.booking_status === "confirmed" ? "#10b981" : "#e74c3c"};color:#fff;">
+            ${b.booking_status}
+          </span>
+        </td>
+        <td style="padding:10px 14px;">
+          ${b.booking_status === "confirmed"
+            ? `<button onclick="cancelBooking(${b.booking_id})"
+                 style="background:#e74c3c;color:#fff;border:none;padding:6px 14px;
+                        border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">
+                 ✕ Cancel
+               </button>`
+            : `<span style="color:#444;font-size:0.8rem;">Cancelled</span>`}
+        </td>
+      </tr>
+    `).join("");
+
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;color:#e74c3c;padding:24px;">
+      Error: ${err.message}</td></tr>`;
+  }
+}
+
+async function cancelBooking(bookingId) {
+  if (!confirm(`Cancel booking #${bookingId}? The seat will be restored to the ride.`)) return;
+  try {
+    const res  = await fetch(`${API}/bookings/${bookingId}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+    toast("✓ Booking cancelled");
+    loadBookings();
+  } catch (err) {
+    toast(`✗ ${err.message}`, "error");
+  }
 }
 
 // ================================================================
@@ -278,13 +451,13 @@ function riderCard(r, i) {
 }
 
 async function deletePerson(type, id) {
-  if (!confirm(`Delete this ${type === 'drivers' ? 'driver' : 'rider'}?`)) return;
+  if (!confirm(`Delete this ${type === "drivers" ? "driver" : "rider"}?`)) return;
   try {
     const res = await fetch(`${API}/${type}/${id}`, { method: "DELETE" });
     const d = await res.json();
     if (!res.ok) throw new Error(d.detail);
-    toast(`✓ ${type === 'drivers' ? 'Driver' : 'Rider'} deleted`);
-    type === 'drivers' ? loadDrivers() : loadRiders();
+    toast(`✓ ${type === "drivers" ? "Driver" : "Rider"} deleted`);
+    type === "drivers" ? loadDrivers() : loadRiders();
   } catch (e) { toast(`✗ ${e.message}`, "error"); }
 }
 
@@ -305,11 +478,11 @@ async function populateSelects() {
 function openModal(type) {
   modalCtx = { type, id: null };
   const titles = { ride: "Post a Ride", driver: "Add Driver", rider: "Add Rider" };
-  document.getElementById("modal-title").textContent = titles[type];
-  document.getElementById("modal-sub").textContent   = "Fill in the details below";
-  document.getElementById("modal-submit").textContent = type === "ride" ? "Post Ride" : `Add ${type.charAt(0).toUpperCase()+type.slice(1)}`;
-  document.getElementById("modal-msg").className = "msg-box";
-  document.getElementById("modal-body").innerHTML = formHTML(type);
+  document.getElementById("modal-title").textContent   = titles[type];
+  document.getElementById("modal-sub").textContent     = "Fill in the details below";
+  document.getElementById("modal-submit").textContent  = type === "ride" ? "Post Ride" : `Add ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+  document.getElementById("modal-msg").className       = "msg-box";
+  document.getElementById("modal-body").innerHTML      = formHTML(type);
   document.getElementById("modal-overlay").classList.add("open");
   document.body.style.overflow = "hidden";
 }
@@ -324,19 +497,19 @@ function formHTML(type, data = {}) {
   if (type === "ride") {
     const drOpts = driversList.map(d => `<option value="${d.id}" ${data.driver_id == d.id ? "selected" : ""}>${d.name} — ${d.vehicle}</option>`).join("");
     const riOpts = `<option value="">None</option>` + ridersList.map(r => `<option value="${r.id}" ${data.rider_id == r.id ? "selected" : ""}>${r.name}</option>`).join("");
-    const dt = data.departure_time ? data.departure_time.replace(" ", "T").slice(0,16) : "";
+    const dt = data.departure_time ? data.departure_time.replace(" ", "T").slice(0, 16) : "";
     return `
       <div class="section-label">Route</div>
-      <div class="field"><label>Pickup Point</label><input type="text" id="f-pickup" placeholder="Koramangala, Bangalore" value="${data.pickup_point||""}" required/></div>
-      <div class="field"><label>Drop-off Point</label><input type="text" id="f-dropoff" placeholder="Electronic City, Bangalore" value="${data.dropoff_point||""}" required/></div>
+      <div class="field"><label>Pickup Point</label><input type="text" id="f-pickup" placeholder="Koramangala, Bangalore" value="${data.pickup_point || ""}" required/></div>
+      <div class="field"><label>Drop-off Point</label><input type="text" id="f-dropoff" placeholder="Electronic City, Bangalore" value="${data.dropoff_point || ""}" required/></div>
       <div class="section-label" style="margin-top:8px">Schedule & Pricing</div>
       <div class="field-row">
         <div class="field"><label>Departure Time</label><input type="datetime-local" id="f-time" value="${dt}" required/></div>
-        <div class="field"><label>Fare per Seat (₹)</label><input type="number" id="f-fare" placeholder="80" value="${data.fare_per_seat||""}" min="0" step="0.5" required/></div>
+        <div class="field"><label>Fare per Seat (₹)</label><input type="number" id="f-fare" placeholder="80" value="${data.fare_per_seat || ""}" min="0" step="0.5" required/></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Total Seats</label><input type="number" id="f-total" min="1" max="8" value="${data.total_seats||3}" required/></div>
-        <div class="field"><label>Seats Available</label><input type="number" id="f-avail" min="0" max="8" value="${data.seats_available||3}" required/></div>
+        <div class="field"><label>Total Seats</label><input type="number" id="f-total" min="1" max="8" value="${data.total_seats || 3}" required/></div>
+        <div class="field"><label>Seats Available</label><input type="number" id="f-avail" min="0" max="8" value="${data.seats_available || 3}" required/></div>
       </div>
       <div class="section-label" style="margin-top:8px">People & Status</div>
       <div class="field-row">
@@ -345,66 +518,67 @@ function formHTML(type, data = {}) {
       </div>
       <div class="field"><label>Status</label>
         <select id="f-status">
-          <option value="available" ${(data.status||"available")==="available"?"selected":""}>🟢 Available</option>
-          <option value="full"      ${data.status==="full"?"selected":""}>🟡 Full</option>
-          <option value="completed" ${data.status==="completed"?"selected":""}>🔵 Completed</option>
-          <option value="cancelled" ${data.status==="cancelled"?"selected":""}>🔴 Cancelled</option>
+          <option value="available" ${(data.status || "available") === "available" ? "selected" : ""}>🟢 Available</option>
+          <option value="full"      ${data.status === "full"      ? "selected" : ""}>🟡 Full</option>
+          <option value="completed" ${data.status === "completed" ? "selected" : ""}>🔵 Completed</option>
+          <option value="cancelled" ${data.status === "cancelled" ? "selected" : ""}>🔴 Cancelled</option>
         </select>
       </div>`;
   }
   if (type === "driver") return `
-      <div class="field"><label>Full Name</label><input type="text" id="f-name" placeholder="Arjun Mehta" value="${data.name||""}" required/></div>
+      <div class="field"><label>Full Name</label><input type="text" id="f-name" placeholder="Arjun Mehta" value="${data.name || ""}" required/></div>
       <div class="field-row">
-        <div class="field"><label>Phone</label><input type="tel" id="f-phone" placeholder="9876543210" value="${data.phone||""}" required/></div>
-        <div class="field"><label>Email</label><input type="email" id="f-email" placeholder="arjun@mail.com" value="${data.email||""}" required/></div>
+        <div class="field"><label>Phone</label><input type="tel" id="f-phone" placeholder="9876543210" value="${data.phone || ""}" required/></div>
+        <div class="field"><label>Email</label><input type="email" id="f-email" placeholder="arjun@mail.com" value="${data.email || ""}" required/></div>
       </div>
-      <div class="field"><label>Vehicle</label><input type="text" id="f-vehicle" placeholder="Honda City - Silver" value="${data.vehicle||""}" required/></div>
-      <div class="field"><label>License Number</label><input type="text" id="f-license" placeholder="KA01AB1234" value="${data.license_no||""}" required/></div>`;
+      <div class="field"><label>Vehicle</label><input type="text" id="f-vehicle" placeholder="Honda City - Silver" value="${data.vehicle || ""}" required/></div>
+      <div class="field"><label>License Number</label><input type="text" id="f-license" placeholder="KA01AB1234" value="${data.license_no || ""}" required/></div>`;
   if (type === "rider") return `
-      <div class="field"><label>Full Name</label><input type="text" id="f-name" placeholder="Divya Nair" value="${data.name||""}" required/></div>
+      <div class="field"><label>Full Name</label><input type="text" id="f-name" placeholder="Divya Nair" value="${data.name || ""}" required/></div>
       <div class="field-row">
-        <div class="field"><label>Phone</label><input type="tel" id="f-phone" placeholder="9871234560" value="${data.phone||""}" required/></div>
-        <div class="field"><label>Email</label><input type="email" id="f-email" placeholder="divya@mail.com" value="${data.email||""}" required/></div>
+        <div class="field"><label>Phone</label><input type="tel" id="f-phone" placeholder="9871234560" value="${data.phone || ""}" required/></div>
+        <div class="field"><label>Email</label><input type="email" id="f-email" placeholder="divya@mail.com" value="${data.email || ""}" required/></div>
       </div>`;
 }
 
-// Pre-fill modal for editing
 function editRideModal(raw) {
   const r = JSON.parse(raw);
   modalCtx = { type: "ride", id: r.id };
   document.getElementById("modal-title").textContent  = "Update Ride";
   document.getElementById("modal-sub").textContent    = `Editing ride #${r.id}`;
   document.getElementById("modal-submit").textContent = "Update Ride";
-  document.getElementById("modal-msg").className = "msg-box";
-  document.getElementById("modal-body").innerHTML = formHTML("ride", r);
+  document.getElementById("modal-msg").className      = "msg-box";
+  document.getElementById("modal-body").innerHTML     = formHTML("ride", r);
   document.getElementById("modal-overlay").classList.add("open");
   document.body.style.overflow = "hidden";
 }
+
 function editDriverModal(raw) {
   const d = JSON.parse(raw);
   modalCtx = { type: "driver", id: d.id };
   document.getElementById("modal-title").textContent  = "Update Driver";
   document.getElementById("modal-sub").textContent    = `Editing ${d.name}`;
   document.getElementById("modal-submit").textContent = "Update Driver";
-  document.getElementById("modal-msg").className = "msg-box";
-  document.getElementById("modal-body").innerHTML = formHTML("driver", d);
+  document.getElementById("modal-msg").className      = "msg-box";
+  document.getElementById("modal-body").innerHTML     = formHTML("driver", d);
   document.getElementById("modal-overlay").classList.add("open");
   document.body.style.overflow = "hidden";
 }
+
 function editRiderModal(raw) {
   const r = JSON.parse(raw);
   modalCtx = { type: "rider", id: r.id };
   document.getElementById("modal-title").textContent  = "Update Rider";
   document.getElementById("modal-sub").textContent    = `Editing ${r.name}`;
   document.getElementById("modal-submit").textContent = "Update Rider";
-  document.getElementById("modal-msg").className = "msg-box";
-  document.getElementById("modal-body").innerHTML = formHTML("rider", r);
+  document.getElementById("modal-msg").className      = "msg-box";
+  document.getElementById("modal-body").innerHTML     = formHTML("rider", r);
   document.getElementById("modal-overlay").classList.add("open");
   document.body.style.overflow = "hidden";
 }
 
 // ================================================================
-//  MODAL SUBMIT — routes to correct CRUD
+//  MODAL SUBMIT
 // ================================================================
 async function handleModalSubmit() {
   const { type, id } = modalCtx;
@@ -452,19 +626,19 @@ async function handleModalSubmit() {
     const res  = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body:    JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Error");
     const label = id ? "updated" : "created";
-    toast(`✓ ${type.charAt(0).toUpperCase()+type.slice(1)} ${label}!`);
+    toast(`✓ ${type.charAt(0).toUpperCase() + type.slice(1)} ${label}!`);
     closeModal();
     if (type === "ride")   { populateSelects(); loadRides(); }
     if (type === "driver") { loadDrivers(); populateSelects(); }
     if (type === "rider")  { loadRiders();  populateSelects(); }
   } catch (err) {
     msgEl.textContent = `✗ ${err.message}`;
-    msgEl.className = "msg-box error";
+    msgEl.className   = "msg-box error";
   }
 }
 
